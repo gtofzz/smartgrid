@@ -1,60 +1,69 @@
 #include "hw_io.h"
 #include "config.h"
-#include "types.h"
-#include "state.h"
-#include "cmdq.h"
 #include "logbuf.h"
+#include "state.h"
 
-/* SUA biblioteca */
-#include "gpio.h"
-
-#include <pthread.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <linux/i2c-dev.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 
-int hw_init(void){
-    gpio_setup(); /* sua função */
-    HouseState s = state_get_self();
-    hw_sync_outputs_from_state(s);
-    hw_set_network_led(NETLED_GREEN);
+static int g_i2c_fd = -1;
+
+int hw_init(void) {
+    g_i2c_fd = open(I2C_DEVICE, O_RDWR);
+    if (g_i2c_fd < 0) {
+        log_push("[I2C] falha ao abrir %s: %s", I2C_DEVICE, strerror(errno));
+        return -1;
+    }
+    if (ioctl(g_i2c_fd, I2C_SLAVE, I2C_ADDRESS) < 0) {
+        log_push("[I2C] ioctl I2C_SLAVE falhou: %s", strerror(errno));
+        close(g_i2c_fd);
+        g_i2c_fd = -1;
+        return -1;
+    }
+    log_push("[I2C] conectado no endereço 0x%02X via %s", I2C_ADDRESS, I2C_DEVICE);
     return 0;
 }
 
-void hw_sync_outputs_from_state(HouseState s){
-    set_led(LEDC1, s.c1 ? 1 : 0);
-    set_led(LEDC2, s.c2 ? 1 : 0);
-    set_led(LEDSOL, s.solar ? 1 : 0);
-}
-void hw_set_network_led(int state){
-    set_network_led(state);
-}
-
-static void *btn_thread(void *arg){
-    (void)arg;
-    int pins[3] = { BOTAOC1, BOTAOC2, BOTAOSOL };
-    int st [3]  = {0,0,0};
-    int cnt[3]  = {0,0,0};
-
-    while (g_run) {
-        for (int i=0;i<3;i++){
-            int lev = read_button(pins[i]) ? 1 : 0;
-            if (lev == st[i]) cnt[i] = 0;
-            else {
-                cnt[i]++;
-                if (cnt[i] >= BTN_STABLE_TICKS) {
-                    st[i] = lev; cnt[i]=0;
-                    if (st[i] == 1) { /* borda de pressão 0->1 */
-                        if (i==0) cmdq_push(CMD_TOGGLE_C1, 0);
-                        if (i==1) cmdq_push(CMD_TOGGLE_C2, 0);
-                        if (i==2) cmdq_push(CMD_TOGGLE_SOLAR, 0);
-                    }
-                }
-            }
-        }
-        usleep(BTN_POLL_MS*1000);
+int hw_send_pwm(int duty) {
+    if (g_i2c_fd < 0) return -1;
+    uint8_t frame[2];
+    frame[0] = 0x01;             /* tipo de mensagem: atualizar duty */
+    frame[1] = (uint8_t)duty;    /* 0-100 */
+    ssize_t w = write(g_i2c_fd, frame, sizeof(frame));
+    if (w != (ssize_t)sizeof(frame)) {
+        log_push("[I2C] write PWM falhou (%zd/%zu)", w, sizeof(frame));
+        return -1;
     }
-    return NULL;
+    return 0;
 }
 
-void hw_start_button_thread(void){
-    pthread_t th; pthread_create(&th, NULL, btn_thread, NULL); pthread_detach(th);
+int hw_read_sample(SensorSample *out) {
+    if (!out || g_i2c_fd < 0) return -1;
+    uint8_t buf[I2C_FRAME_LEN] = {0};
+    ssize_t r = read(g_i2c_fd, buf, sizeof(buf));
+    if (r != (ssize_t)sizeof(buf)) {
+        log_push("[I2C] leitura incompleta (%zd/%zu)", r, sizeof(buf));
+        return -1;
+    }
+
+    /* Formato: temp(int16), umidade(int16), pwm(uint8) */
+    int16_t temp = (int16_t)((buf[0] << 8) | buf[1]);
+    int16_t hum  = (int16_t)((buf[2] << 8) | buf[3]);
+    out->temp_cC = temp;
+    out->hum_cP = hum;
+    out->pwm_feedback = buf[4];
+    return 0;
+}
+
+void hw_shutdown(void) {
+    if (g_i2c_fd >= 0) {
+        close(g_i2c_fd);
+        g_i2c_fd = -1;
+    }
 }

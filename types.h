@@ -1,45 +1,31 @@
 #ifndef TYPES_H
 #define TYPES_H
-#include <time.h>
+
 #include <stdbool.h>
+#include <time.h>
 
 typedef struct {
-    int ID;
-    int c1;      // carga 1 (0/1)
-    int c2;      // carga 2 (0/1)
-    int solar;   // 0/1
-    int active;  // 0/1 (sempre c1||c2 ao publicar)
-    int shed;    // 0,1,2
-    int noOffer; // 0/1
-    int ts;      // epoch do envio
-} HouseState;
+    int temp_cC;       /* temperatura em centésimos de °C */
+    int hum_cP;        /* umidade relativa em centésimos de % */
+    int pwm_feedback;  /* duty-cycle retornado pelo STM32 */
+} SensorSample;
 
 typedef struct {
-    int H;       // casas com active=1
-    int G;       // geradores ON
-    int Loff;    // somatório de shed
-    int Cap;     // 4 + G + floor(Loff/4)
-    int Gap;     // H - Cap
-    int epoch;   // epoch atual
-    int targetOff;
-} GridVars;
-
-typedef struct {
-    int epoch;
-    int targetOff;
-    time_t seen_at;
-} SheddingCmd;
+    int duty_setpoint; /* último duty enviado ao STM32 */
+    SensorSample last_sample;
+    time_t last_sample_ts;
+    int i2c_errors;
+} DeviceState;
 
 typedef enum {
-    CMD_TOGGLE_C1 = 1,
-    CMD_TOGGLE_C2 = 2,
-    CMD_TOGGLE_SOLAR = 3,
-    CMD_SET_ID = 4,
-    CMD_QUIT = 9,
-    CMD_INTERNAL_SHED = 100,
-    CMD_INTERNAL_RESTORE = 101
+    CMD_SET_PWM = 1,
+    CMD_READ_SENSORS = 2,
+    CMD_QUIT = 9
 } CommandType;
 
-typedef struct { CommandType type; int arg; } Command;
+typedef struct {
+    CommandType type;
+    int arg;
+} Command;
 
 #endif

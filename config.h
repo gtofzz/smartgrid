@@ -1,30 +1,28 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-/************* MQTT / TÓPICOS *************/
-#define BROKER_IP           "192.168.106.11"
+/* ===== MQTT ===== */
+#define BROKER_IP           "127.0.0.1"
 #define BROKER_PORT         1883
-#define TOPIC_STATE         "grid/state"
-#define TOPIC_CMD_EPOCH     "grid/cmd/epoch"
-#define TOPIC_CMD_SHEDDING  "grid/cmd/shedding"
 
-/************* LIMITES / TEMPOS *************/
-#ifndef MAX_HOUSES
-#define MAX_HOUSES          128
-#endif
+/* Tópicos padronizados segundo o enunciado */
+#define TOPIC_CMD_LUZ       "cmd/luz"       /* Web -> Raspi */
+#define TOPIC_STATUS        "cmd/status"    /* Raspi -> Web */
+#define TOPIC_SENSORES      "cmd/sensores"  /* Raspi -> Web */
 
-#define PUB_PERIOD_SEC      1
-#define CTRL_PERIOD_SEC     1
-#define BASE_CAP            4
-#define NODE_TTL_SEC        (3*PUB_PERIOD_SEC + 1)
+/* Periodicidades (segundos) */
+#define STATUS_PERIOD_SEC   2
+#define SENSOR_PERIOD_SEC   1
 
-/************* HARDWARE (debounce) *************/
-#define BTN_POLL_MS         10
-#define BTN_STABLE_TICKS    5   /* 5*10ms = 50ms */
+/* ===== I2C ===== */
+#define I2C_DEVICE          "/dev/i2c-1"
+#define I2C_ADDRESS         0x28
 
-/* LED de rede: 0=verde 1=amarelo 2=vermelho */
-#define NETLED_GREEN 0
-#define NETLED_YELL  1
-#define NETLED_RED   2
+/* Formato STM32 -> Raspi (t1/100, RH/100, pwm%) */
+#define I2C_FRAME_LEN       5
+
+/* ===== PWM ===== */
+#define PWM_MIN             0
+#define PWM_MAX             100
 
 #endif

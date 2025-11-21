@@ -9,6 +9,7 @@ BUILD   ?= release            # use: make BUILD=debug  (ou deixe release)
 WARN    := -Wall -Wextra -Wshadow -Wpointer-arith -Wcast-align -Wstrict-prototypes
 DEFS    :=
 INCS    :=
+USE_MQTT_STUB ?= 1
 
 # Perfis
 ifeq ($(BUILD),debug)
@@ -20,7 +21,13 @@ endif
 # Threads e deps automáticas
 CFLAGS  += -pthread -MMD -MP
 LDFLAGS +=
-LDLIBS  += -lmosquitto -lcjson -lbcm2835 -pthread
+LDLIBS  += -pthread
+
+ifeq ($(USE_MQTT_STUB),1)
+  DEFS   += -DMQTT_STUB
+else
+  LDLIBS += -lmosquitto
+endif
 
 # Fontes/Objetos
 SRCS := \
@@ -31,8 +38,11 @@ SRCS := \
   mqtt_if.c \
   control.c \
   ui.c \
-  hw_io.c \
-  gpio.c
+  hw_io.c
+
+ifeq ($(USE_MQTT_STUB),1)
+SRCS += mosquitto_stub.c
+endif
 
 OBJS := $(SRCS:.c=.o)
 DEPS := $(OBJS:.o=.d)

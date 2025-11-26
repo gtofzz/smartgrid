@@ -10,6 +10,11 @@
 #include <cstdlib>
 #include <cstdint>
 #include <limits>
+#include <cstdio>
+#include <sstream>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include "config.h"
 
@@ -18,6 +23,7 @@ static std::atomic<bool> connected(false);
 static std::mutex data_mutex;
 static double last_temperature = 0.0;
 static double last_humidity = 0.0;
+static pid_t broker_pid = -1;
 
 bool parse_double_field(const std::string &payload, const std::string &key, double &value)
 {
@@ -200,6 +206,48 @@ void apply_overrides(int argc, char **argv, std::string &broker_host, int &broke
     }
 }
 
+bool should_start_embedded_broker(const std::string &host)
+{
+    return host == "localhost" || host == "127.0.0.1";
+}
+
+bool start_embedded_broker(int port)
+{
+    if (broker_pid > 0)
+        return true;
+
+    pid_t pid = fork();
+    if (pid < 0)
+    {
+        std::perror("Erro ao criar processo do broker MQTT");
+        return false;
+    }
+
+    if (pid == 0)
+    {
+        std::string port_str = std::to_string(port);
+        execlp("mosquitto", "mosquitto", "-p", port_str.c_str(), nullptr);
+        std::perror("Falha ao iniciar broker mosquitto");
+        _exit(127);
+    }
+
+    broker_pid = pid;
+    std::cout << "Broker MQTT incorporado iniciado na porta " << port << " (pid " << broker_pid << ")" << std::endl;
+    return true;
+}
+
+void stop_embedded_broker()
+{
+    if (broker_pid > 0)
+    {
+        kill(broker_pid, SIGTERM);
+        int status = 0;
+        waitpid(broker_pid, &status, 0);
+        std::cout << "Broker MQTT incorporado finalizado" << std::endl;
+        broker_pid = -1;
+    }
+}
+
 int main(int argc, char *argv[])
 {
     std::signal(SIGINT, handle_signal);
@@ -207,6 +255,15 @@ int main(int argc, char *argv[])
     std::string broker_host = BROKER_HOST;
     int broker_port = BROKER_PORT;
     apply_overrides(argc, argv, broker_host, broker_port);
+
+    if (should_start_embedded_broker(broker_host))
+    {
+        if (!start_embedded_broker(broker_port))
+        {
+            std::cerr << "Nao foi possivel iniciar o broker MQTT local" << std::endl;
+            return 1;
+        }
+    }
 
     mosquitto_lib_init();
     mosquitto *client = mosquitto_new(nullptr, true, nullptr);
@@ -267,6 +324,8 @@ int main(int argc, char *argv[])
 
     mosquitto_destroy(client);
     mosquitto_lib_cleanup();
+
+    stop_embedded_broker();
 
     return 0;
 }

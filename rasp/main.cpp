@@ -73,6 +73,7 @@ void on_message(struct mosquitto *, void *, const struct mosquitto_message *msg)
 
             if (USE_SIMULATED_SENSORS == 0 && i2c_fd >= 0)
             {
+                std::cout << "PWM (modo real) desejado para envio: " << current_pwm << std::endl;
                 std::string error_msg;
                 if (!i2c_send_pwm(i2c_fd, static_cast<uint8_t>(current_pwm), error_msg))
                 {

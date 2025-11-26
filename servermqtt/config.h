@@ -1,7 +1,7 @@
 #pragma once
 
 // MQTT broker configuration
-#define BROKER_HOST "localhost"
+#define BROKER_HOST "127.0.0.1"
 #define BROKER_PORT 1883
 
 // Group identification

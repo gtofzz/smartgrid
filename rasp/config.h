@@ -1,7 +1,7 @@
 #pragma once
 
 // MQTT broker configuration
-#define BROKER_HOST "localhost"
+#define BROKER_HOST "127.0.0.1"
 #define BROKER_PORT 1883
 
 // Group identification
@@ -14,7 +14,7 @@
 #define TOPIC_STATUS "grupo3/status"
 
 // Operating mode
-#define USE_SIMULATED_SENSORS 1
+#define USE_SIMULATED_SENSORS 0
 
 // I2C configuration
 #define I2C_DEVICE "/dev/i2c-1"

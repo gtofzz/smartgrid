@@ -7,6 +7,9 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
+#include <cstdint>
+#include <limits>
 
 #include "config.h"
 
@@ -140,9 +143,70 @@ void pwm_input_loop(mosquitto *client)
     }
 }
 
-int main()
+std::string get_env_or_default(const char *name, const std::string &default_value)
+{
+    const char *value = std::getenv(name);
+    if (value && *value)
+        return value;
+    return default_value;
+}
+
+bool parse_port(const std::string &value, int &port)
+{
+    try
+    {
+        long parsed = std::stol(value);
+        if (parsed > 0 && parsed <= std::numeric_limits<uint16_t>::max())
+        {
+            port = static_cast<int>(parsed);
+            return true;
+        }
+    }
+    catch (...)
+    {
+    }
+    return false;
+}
+
+void apply_overrides(int argc, char **argv, std::string &broker_host, int &broker_port)
+{
+    broker_host = get_env_or_default("MQTT_HOST", broker_host);
+
+    const std::string env_port = get_env_or_default("MQTT_PORT", "");
+    int parsed_port = broker_port;
+    if (!env_port.empty() && !parse_port(env_port, parsed_port))
+    {
+        std::cerr << "Ignorando MQTT_PORT invalido: " << env_port << std::endl;
+    }
+    else if (!env_port.empty())
+    {
+        broker_port = parsed_port;
+    }
+
+    for (int i = 1; i < argc; ++i)
+    {
+        std::string arg(argv[i]);
+        if (arg.rfind("--host=", 0) == 0)
+        {
+            broker_host = arg.substr(7);
+        }
+        else if (arg.rfind("--port=", 0) == 0)
+        {
+            if (!parse_port(arg.substr(7), broker_port))
+            {
+                std::cerr << "Valor de porta invalido em --port: " << arg.substr(7) << std::endl;
+            }
+        }
+    }
+}
+
+int main(int argc, char *argv[])
 {
     std::signal(SIGINT, handle_signal);
+
+    std::string broker_host = BROKER_HOST;
+    int broker_port = BROKER_PORT;
+    apply_overrides(argc, argv, broker_host, broker_port);
 
     mosquitto_lib_init();
     mosquitto *client = mosquitto_new(nullptr, true, nullptr);
@@ -157,7 +221,9 @@ int main()
     mosquitto_disconnect_callback_set(client, on_disconnect);
     mosquitto_message_callback_set(client, on_message);
 
-    int rc = mosquitto_connect(client, BROKER_HOST, BROKER_PORT, 60);
+    std::cout << "Conectando ao broker MQTT em " << broker_host << ':' << broker_port << std::endl;
+
+    int rc = mosquitto_connect(client, broker_host.c_str(), broker_port, 60);
     if (rc != MOSQ_ERR_SUCCESS)
     {
         std::cerr << "Nao foi possivel conectar: " << mosquitto_strerror(rc) << std::endl;

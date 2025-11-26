@@ -216,6 +216,13 @@ bool start_embedded_broker(int port)
     if (broker_pid > 0)
         return true;
 
+    if (std::system("command -v mosquitto >/dev/null 2>&1") != 0)
+    {
+        std::cerr << "Broker MQTT incorporado nao iniciado: binario 'mosquitto' nao encontrado. "
+                  << "Instale o broker ou aponte MQTT_HOST/MQTT_PORT para um broker externo." << std::endl;
+        return false;
+    }
+
     pid_t pid = fork();
     if (pid < 0)
     {

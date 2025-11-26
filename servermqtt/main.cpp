@@ -23,6 +23,7 @@ static std::atomic<bool> connected(false);
 static std::mutex data_mutex;
 static double last_temperature = 0.0;
 static double last_humidity = 0.0;
+static bool has_new_sensor_data = false;
 static pid_t broker_pid = -1;
 
 bool parse_double_field(const std::string &payload, const std::string &key, double &value)
@@ -113,6 +114,7 @@ void on_message(struct mosquitto *, void *, const struct mosquitto_message *msg)
             std::lock_guard<std::mutex> lock(data_mutex);
             last_temperature = temp;
             last_humidity = hum;
+            has_new_sensor_data = true;
         }
         std::cout << "[SENSORES] " << payload << std::endl;
     }
@@ -315,10 +317,25 @@ int main(int argc, char *argv[])
             }
         }
 
+        bool should_print_data = false;
+        double temp_to_print = 0.0;
+        double hum_to_print = 0.0;
+
         {
             std::lock_guard<std::mutex> lock(data_mutex);
-            std::cout << "grupo " << GROUP_ID_STR << ", umidade " << last_humidity
-                      << ", temperatura " << last_temperature << std::endl;
+            if (has_new_sensor_data)
+            {
+                temp_to_print = last_temperature;
+                hum_to_print = last_humidity;
+                has_new_sensor_data = false;
+                should_print_data = true;
+            }
+        }
+
+        if (should_print_data)
+        {
+            std::cout << "grupo " << GROUP_ID_STR << ", umidade " << hum_to_print
+                      << ", temperatura " << temp_to_print << std::endl;
         }
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }

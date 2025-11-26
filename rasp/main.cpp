@@ -69,6 +69,7 @@ void on_message(struct mosquitto *, void *, const struct mosquitto_message *msg)
             int pwm = std::stoi(payload);
             if (pwm < 0 || pwm > 100)
                 return;
+            std::cout << "MQTT: PWM recebido=" << pwm << std::endl;
             current_pwm = pwm;
 
             if (USE_SIMULATED_SENSORS == 0 && i2c_fd >= 0)

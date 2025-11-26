@@ -1,0 +1,8 @@
+#!/bin/bash
+
+g++ -std=c++17 -Wall -O2 -o servermqtt main.cpp -lmosquitto -lpthread
+if [ $? -eq 0 ]; then
+    ./servermqtt
+else
+    echo "Falha na compilacao do servermqtt"
+fi

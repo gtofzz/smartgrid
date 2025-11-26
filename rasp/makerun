@@ -1,0 +1,8 @@
+#!/bin/bash
+
+g++ -std=c++17 -Wall -O2 -o rasp main.cpp i2c_helpers.cpp simulated_sensors.cpp -lmosquitto -lpthread
+if [ $? -eq 0 ]; then
+    ./rasp
+else
+    echo "Falha na compilacao do rasp"
+fi
